@@ -220,6 +220,15 @@ class MyGame(arcade.Window):
         if key == arcade.key.SPACE:
             arcade.sound.play_sound(self.shoot_sound)
             if self.current_state == START_SCREEN:
+                self.setup()
+                self.current_state = GAME_RUNNING
+            elif self.current_state == GAME_OVER:
+                # Restart the game.
+                self.setup()
+                self.current_state = GAME_RUNNING
+        if key == arcade.key.ENTER:
+            arcade.sound.play_sound(self.shoot_sound)
+            if self.current_state == START_SCREEN:
                 # Next page of instructions.
                 self.current_state = INSTRUCTIONS
             elif self.current_state == INSTRUCTIONS:
@@ -295,3 +304,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
