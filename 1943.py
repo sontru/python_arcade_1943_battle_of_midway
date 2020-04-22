@@ -29,6 +29,20 @@ ENEMY_COUNT = 5
 MOVEMENT_SPEED  = 5
 PLAYER_LIVES = 3
 
+class Bullet(arcade.Sprite):
+    """ Bullet class, inherited from the character class that comes with Arcade, it is shot from the coordinates of the aircraft """
+    def __init__(self,image,plane):
+        super().__init__(image)
+        self.center_x = plane.center_x
+        self.center_y = plane.center_y
+        self.change_y = 20
+
+    def update(self):
+        """ update coordinates"""
+        self.center_x += self.change_x
+        self.center_y += self.change_y
+        if self.bottom >  SCREEN_HEIGHT: self.kill()
+
 class MyGame(arcade.Window):
     """
     Main application class.
@@ -45,6 +59,12 @@ class MyGame(arcade.Window):
         # as mentioned at the top of this program.
         file_path = os.path.dirname(os.path.abspath(__file__))
         os.chdir(file_path)
+
+        # Load sounds and set background music
+        self.shoot_sound = arcade.sound.load_sound("images/midway/Shot.wav")
+        
+        self.background_music = arcade.sound.load_sound("images/midway/background.wav")
+        arcade.sound.play_sound(self.background_music)
 
         # Set the background color
         arcade.set_background_color(arcade.color.WHITE)
@@ -184,28 +204,52 @@ class MyGame(arcade.Window):
         """
         Called when the user presses a mouse button.
         """
-
         # Change states as needed.
-        if self.current_state == START_SCREEN:
-            # Next page of instructions.
-            self.current_state = INSTRUCTIONS
-        elif self.current_state == INSTRUCTIONS:
-            # Start the game
-            self.setup()
-            self.current_state = GAME_RUNNING
-        elif self.current_state == GAME_OVER:
-            # Restart the game.
-            self.setup()
-            self.current_state = GAME_RUNNING
 
     def on_mouse_motion(self, x, y, dx, dy):
         """
         Called whenever the mouse moves.
         """
         # Only move the user if the game is running.
-        if self.current_state == GAME_RUNNING:
-            self.player_sprite.center_x = x
-            self.player_sprite.center_y = y
+        #if self.current_state == GAME_RUNNING:
+        #    self.player_sprite.center_x = x
+        #    self.player_sprite.center_y = y
+
+    def on_key_press(self, key, modifiers):
+        """ Key button events """
+        if key == arcade.key.SPACE:
+            arcade.sound.play_sound(self.shoot_sound)
+            if self.current_state == START_SCREEN:
+                # Next page of instructions.
+                self.current_state = INSTRUCTIONS
+            elif self.current_state == INSTRUCTIONS:
+                # Start the game
+                self.setup()
+                self.current_state = GAME_RUNNING
+            elif self.current_state == GAME_OVER:
+                # Restart the game.
+                self.setup()
+                self.current_state = GAME_RUNNING
+        if key == arcade.key.W:
+            self.player_sprite.change_y = MOVEMENT_SPEED
+        elif key == arcade.key.S:
+            self.player_sprite.change_y = -MOVEMENT_SPEED
+        elif key == arcade.key.A:
+            self.player_sprite.change_x = -MOVEMENT_SPEED
+        elif key == arcade.key.D:
+            self.player_sprite.change_x = MOVEMENT_SPEED
+        elif key == arcade.key.J:
+            arcade.sound.play_sound(self.shoot_sound)
+            self.bullet = Bullet("images/midway/Shot1.png",self.player_sprite)
+            self.bullet_list.append(self.bullet)
+            self.all_sprites_list.append(self.bullet)
+
+    def on_key_release(self, key, modifiers):
+        """ Key release event """
+        if key == arcade.key.W or key == arcade.key.S:
+            self.player_sprite.change_y = 0
+        elif key == arcade.key.A or key == arcade.key.D:
+            self.player_sprite.change_x = 0
 
     # STEP 7: Only update if the game state is GAME_RUNNING like below:
     def update(self, delta_time):
@@ -232,6 +276,16 @@ class MyGame(arcade.Window):
             if len(self.coin_list) == 0:
                 self.current_state = GAME_OVER
                 self.set_mouse_visible(True)
+
+            if self.player_sprite.left < 0:
+                self.player_sprite.left = 0
+            elif self.player_sprite.right > SCREEN_WIDTH - 1:
+                self.player_sprite.right = SCREEN_WIDTH - 1
+
+            if self.player_sprite.bottom < 0:
+                self.player_sprite.bottom = 0
+            elif self.player_sprite.top > SCREEN_HEIGHT - 1:
+                self.player_sprite.top = SCREEN_HEIGHT - 1
 
 
 def main():
