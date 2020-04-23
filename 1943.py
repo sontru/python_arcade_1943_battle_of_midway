@@ -38,13 +38,22 @@ class Background(arcade.Sprite):
     def update(self):
         self.center_x += self.change_x
         self.center_y += self.change_y
-        if self.top <=0 : self.bottom = SCREEN_HEIGHT
+        if self.top <= 0 : self.bottom = SCREEN_HEIGHT
+
+class Furniture(arcade.Sprite):
+    def __init__(self,image):
+        super().__init__(image)
+        self.center_x = 0
+        self.center_y = SCREEN_HEIGHT
+
+    def update(self):
+        if self.top<=0:self.kill()
 
 class RedFighter(arcade.Sprite):
     def __init__(self,image):
         super().__init__(image)
         self.center_x = 0
-        self.center_y = SCREEN_HEIGHT
+        self.center_y = 0
 
     def update(self):
         if self.top<=0:self.kill()
@@ -162,6 +171,8 @@ class MyGame(arcade.Window):
         Set up the game.
         """
         # Sprite lists
+        self.cloud_list = arcade.SpriteList()
+
         self.enemy_list = arcade.SpriteList()
         self.red_list = arcade.SpriteList()
         self.bullet_list = arcade.SpriteList()
@@ -172,16 +183,33 @@ class MyGame(arcade.Window):
         self.player_sprite.health  = PLAYER_LIVES        # No of Lives
         self.all_sprites_list.append(self.player_sprite)
 
-        for i in range(1):
-            redfighter = RedFighter("images/midway/Fighter2.png")
-            self.red_list.append(redfighter)
-            self.all_sprites_list.append(redfighter)
-
+        # Set up enemies
         for i in range(ENEMY_COUNT):
             # Create Enemies
             enemy = Enemy("images/midway/Fighter1.png")
             self.enemy_list.append(enemy)
             self.all_sprites_list.append(enemy)
+
+        for i in range(5):
+            redfighter = RedFighter("images/midway/Fighter2.png")
+            redfighter.center_x = 0
+            redfighter.center_y = SCREEN_HEIGHT-i*30
+            self.red_list.append(redfighter)
+            self.all_sprites_list.append(redfighter)
+
+        for i in range(5):
+            clouds = Furniture("images/midway/cloud-right.png")
+            clouds.center_x = SCREEN_WIDTH - (10 * i + random.randrange(10,50))
+            clouds.center_y = SCREEN_HEIGHT + (300 * i) + random.randrange(0,1000)
+            self.cloud_list.append(clouds)
+            self.all_sprites_list.append(clouds)
+
+        for i in range(5):
+            clouds = Furniture("images/midway/cloud-left.png")
+            clouds.center_x = 10 * i + random.randrange(10,50)
+            clouds.center_y = SCREEN_HEIGHT + (300 * i) + random.randrange(0,1000)
+            self.cloud_list.append(clouds)
+            self.all_sprites_list.append(clouds)
 
         sea_image = "images/midway/sea.png"
         # Setting a Fixed Background To cover up rolling background cracks
@@ -245,6 +273,7 @@ class MyGame(arcade.Window):
         self.background1.draw()   # Paint scroll background
         self.background2.draw()   # Paint scroll background
 
+        self.cloud_list.draw()
         # Draw all the characters
         self.enemy_list.draw()
         self.red_list.draw()
@@ -282,17 +311,20 @@ class MyGame(arcade.Window):
             arcade.draw_text(output, 40, 360, arcade.color.BLACK, 44, bold=True)
             arcade.draw_text(output, 45, 365, arcade.color.WHITE, 44, bold=True)
             output = "Press Enter for Keys"
+            arcade.draw_text(output, 272, 117, arcade.color.BLACK, 24)
             arcade.draw_text(output, 275, 120, arcade.color.WHITE, 24)
             output = "Press SPACE to play"
-            arcade.draw_text(output, 275, 90, arcade.color.BLACK, 24)
-            self.player_sprite.draw()
+            arcade.draw_text(output, 272, 87, arcade.color.BLACK, 24)
+            arcade.draw_text(output, 275, 90, arcade.color.WHITE, 24)
 
         elif self.current_state == INSTRUCTIONS:
             self.draw_instructions_page(1)
             output = "W: up, S: down, A: left, D: right, J: fire"
             arcade.draw_text(output, 50, 342, arcade.color.BLACK, 24)
+            arcade.draw_text(output, 48, 344, arcade.color.WHITE, 24)
             output = "Press SPACE to play"
-            arcade.draw_text(output, 150, 40, arcade.color.BLACK, 24)
+            arcade.draw_text(output, 150, 286, arcade.color.BLACK, 24)
+            arcade.draw_text(output, 148, 288, arcade.color.WHITE, 24)
 
         elif self.current_state == GAME_RUNNING:
             self.draw_game()
@@ -331,10 +363,6 @@ class MyGame(arcade.Window):
         if key == arcade.key.SPACE and self.current_state != GAME_RUNNING:
             self.current_state = GAME_RUNNING
             self.setup()
-#            e = Explosion(self.enemy_explosion_images)
-#            e.center_x = self.player_sprite.center_x
-#            e.center_y = self.player_sprite.center_y
-#            self.explosion_list.draw()
 
         if key == arcade.key.W:
             self.player_sprite.change_y = MOVEMENT_SPEED
@@ -370,11 +398,12 @@ class MyGame(arcade.Window):
             # Update coordinates, etc.
             #print(self.background2.bottom - self.background1.top)
             distance = self.background2.bottom - self.background1.top
-            if  distance < 0 and distance > -40:   # Fissure remedy
+            if  distance < 0 and distance > -80:   # Fissure remedy
                 self.background2.bottom = self.background1.top
 
             self.enemy_list.move(0, -5)
-            self.red_list.move(1,-1)
+            self.red_list.move(1,-2)
+            self.cloud_list.move(0,-2)
             self.all_sprites_list.update()
             self.player_sprite.update_animation()
 
@@ -418,6 +447,12 @@ class MyGame(arcade.Window):
             # If we've collected all the games, then move to a "GAME_OVER"
             # state.
             if self.player_sprite.health <= 0:
+                e = Explosion(self.enemy_explosion_images,self.player_sprite.center_x,self.player_sprite.center_y)
+                e.center_x = self.player_sprite.center_x
+                e.center_y = self.player_sprite.center_y
+                e.update()
+                self.enemy_explosion_list.append(e)
+                self.all_sprites_list.append(e)
                 self.current_state = GAME_OVER
                 self.set_mouse_visible(True)
 
