@@ -67,6 +67,22 @@ class Enemy(arcade.Sprite):
     def update(self):
         if self.top<=0:self.kill()
 
+class Enemy1(arcade.Sprite):
+    def __init__(self,image):
+        self = arcade.AnimatedTimeSprite("images/midway/Enemy1.png",0.8)
+        self.textures.append(arcade.load_texture("images/midway/Enemy2.png"))
+        self.textures.append(arcade.load_texture("images/midway/Enemy3.png"))
+        self.scale = 1.0
+        self.center_x = 0
+        self.center_y = 0
+
+    def update(self):
+        self.current_texture += 1
+        if self.current_texture < len(self.textures):
+            self.set_texture(self.current_texture)
+        if self.top<=0:self.kill()
+
+
 class Explosion(arcade.Sprite):
     """ create explosion sprite"""
     def __init__(self, texture_list,x,y):
@@ -131,6 +147,8 @@ class MyGame(arcade.Window):
         self.background_music = arcade.sound.load_sound("images/midway/background.wav")
         self.shoot_sound = arcade.sound.load_sound("images/midway/Shot.wav")
         self.explode_sound = arcade.sound.load_sound("images/midway/explode.wav")
+        self.powerup_sound = arcade.sound.load_sound("images/midway/powerup.wav")
+        self.gameover_sound = arcade.sound.load_sound("images/midway/gameover.wav")
 
         # Play background music
         arcade.sound.play_sound(self.background_music)
@@ -142,12 +160,17 @@ class MyGame(arcade.Window):
         # Start 'state' will be showing the first page of instructions.
         self.current_state = START_SCREEN
 
-        self.player_list = None
-        self.coin_list = None
+        #self.player_list = None
+        #self.coin_list = None
 
         # Set up the player
-        self.score = 0
         self.player_sprite = None
+
+        # Set up the enemy
+        self.enemy_sprite = None
+
+        # Set up the POW
+        self.power_sprite = None
 
         # STEP 1: Put each instruction page in an image. Make sure the image
         # matches the dimensions of the window, or it will stretch and look
@@ -163,25 +186,54 @@ class MyGame(arcade.Window):
         self.player_sprite.textures.append(arcade.load_texture("images/midway/Plane2.png"))
         self.player_sprite.textures.append(arcade.load_texture("images/midway/Plane3.png"))
         self.player_sprite.scale = 1.0
-        self.player_sprite.center_x = 50
-        self.player_sprite.center_y = 80
+        
+        self.enemy_sprite = arcade.AnimatedTimeSprite("images/midway/Enemy1.png",0.8)
+        self.enemy_sprite.textures.append(arcade.load_texture("images/midway/Enemy2.png"))
+        self.enemy_sprite.textures.append(arcade.load_texture("images/midway/Enemy3.png"))
+        self.enemy_sprite.scale = 1.0
+
+        self.power_sprite = arcade.AnimatedTimeSprite("images/midway/Pow1a.png",0.8)
+        self.power_sprite.textures.append(arcade.load_texture("images/midway/Pow1b.png"))
+        self.power_sprite.textures.append(arcade.load_texture("images/midway/Pow1c.png"))
+        self.power_sprite.scale = 1.0
 
     def setup(self):
         """
         Set up the game.
         """
+        self.score = 0
+        self.enemy_shot = 0
+        self.power_col = False
+        self.powerup = 1
+        enemy_shot = False
+        powerup = True
+
         # Sprite lists
         self.cloud_list = arcade.SpriteList()
 
         self.enemy_list = arcade.SpriteList()
         self.red_list = arcade.SpriteList()
+
         self.bullet_list = arcade.SpriteList()
+
         self.enemy_explosion_list = arcade.SpriteList()
+        self.power_list = arcade.SpriteList()
+
         self.all_sprites_list = arcade.SpriteList()
 
         # Set up the player
         self.player_sprite.health  = PLAYER_LIVES        # No of Lives
+        self.player_sprite.center_x = SCREEN_WIDTH //2
+        self.player_sprite.center_y = 50
         self.all_sprites_list.append(self.player_sprite)
+
+        self.enemy_sprite.center_x = SCREEN_WIDTH+30
+        self.enemy_sprite.center_y = SCREEN_HEIGHT+30
+        self.all_sprites_list.append(self.enemy_sprite)
+
+        self.power_sprite.center_x = SCREEN_WIDTH+30
+        self.power_sprite.center_y = SCREEN_HEIGHT+30
+        self.all_sprites_list.append(self.power_sprite)
 
         # Set up enemies
         for i in range(ENEMY_COUNT):
@@ -280,13 +332,15 @@ class MyGame(arcade.Window):
         if self.player_sprite.health > 0:
            self.player_sprite.draw()
         self.bullet_list.draw()
+        self.enemy_sprite.draw()
+        self.power_sprite.draw()
         self.enemy_explosion_list.draw()
 
         # 画得分情况
         score = "Kills: " + str(self.score) + ", Lives: " + str(self.player_sprite.health)
         arcade.draw_text(score, 10, 20, arcade.color.WHITE, 14 )
 
-        if self.player_sprite.health < 1:  # 血量小于1显示游戏结束
+        if self.player_sprite.health < 1:  # end of game
            self.interval_counter +=1
            if self.interval_counter % self.interval == 0: self.interval_counter = 0
 
@@ -404,48 +458,106 @@ class MyGame(arcade.Window):
             self.enemy_list.move(0, -5)
             self.red_list.move(1,-2)
             self.cloud_list.move(0,-2)
-            self.all_sprites_list.update()
             self.player_sprite.update_animation()
+            self.enemy_sprite.update_animation()
+            self.power_sprite.update_animation()
+            self.all_sprites_list.update()
 
             if self.player_sprite.health > 0:
                 # Collision detection between players and all enemy aircraft.
-                hit_list = arcade.check_for_collision_with_list(self.player_sprite,self.enemy_list)
-                # Traverse the list of enemy aircraft encountered
-                for enemy in hit_list:
-                    enemy.kill()
-                    self.player_sprite.health -= 1
-                    if self.player_sprite.health < 0 :
-                        e = Explosion(self.enemy_explosion_images)
-                        e.center_x = self.player_sprite.center_x
-                        e.center_y = self.player_sprite.center_y
-                        e.update()
-                        self.player_sprite.kill()
+                for enemy_list in [ self.enemy_list, self.red_list ]:
+                    hit_list = arcade.check_for_collision_with_list(self.player_sprite,enemy_list)
+                    # Traverse the list of enemy aircraft encountered
+                    for enemy in hit_list:
+                        enemy.kill()
+                        self.player_sprite.health -= 1
+                        if self.player_sprite.health < 0 :
+                            e = Explosion(self.enemy_explosion_images)
+                            e.center_x = self.player_sprite.center_x
+                            e.center_y = self.player_sprite.center_y
+                            e.update()
+                            self.player_sprite.kill()
 
-                    e = Explosion(self.enemy_explosion_images,enemy.center_x,enemy.center_y)
-                    e.center_x = enemy.center_x
-                    e.center_y = enemy.center_y
-                    e.update()
-                    arcade.sound.play_sound(self.explode_sound)
-                    self.enemy_explosion_list.append(e)
-                    self.all_sprites_list.append(e)
+                        e = Explosion(self.enemy_explosion_images,enemy.center_x,enemy.center_y)
+                        e.center_x = enemy.center_x
+                        e.center_y = enemy.center_y
+                        e.update()
+                        arcade.sound.play_sound(self.explode_sound)
+                        self.enemy_explosion_list.append(e)
+                        self.all_sprites_list.append(e)
+
+            # Is Powerup dropped?
+            if self.powerup:
+                self.power_sprite.top = self.power_sprite.top - 2
+                self.power_sprite.update()
+                # pickup power up
+                power_col = arcade.check_for_collision(self.power_sprite,self.player_sprite)
+                if power_col:
+                    arcade.sound.play_sound(self.powerup_sound)
+                    self.powerup = 0
+                    self.power_sprite.kill()
+
+            if not self.enemy_shot:
+                enemy_hit = arcade.check_for_collision(self.enemy_sprite,self.player_sprite)
+                if enemy_hit:
+                    print(self.enemy_sprite.left,self.enemy_sprite.top)
+                    self.enemy_shot = True
+                    self.enemy_sprite.kill()
+                    self.enemy_sprite.update()
+                    es = Explosion(self.enemy_explosion_images,self.enemy_sprite.center_x,self.enemy_sprite.center_y)
+                    es.center_x = self.enemy_sprite.center_x
+                    es.center_y = self.enemy_sprite.center_y
+                    es.update()
+                    self.enemy_explosion_list.append(es)
+                    self.all_sprites_list.append(es)
+
+            print(self.player_sprite.left,self.player_sprite.top)
+
+            if self.power_sprite.top < 0:
+                self.power_sprite.kill()
+                self.powerup = 0
+
+            # Did we shoot the powerup enemy?
+            if not self.enemy_shot:
+
+               self.enemy_sprite.right = self.enemy_sprite.right - 1
+               self.enemy_sprite.top = self.enemy_sprite.top - 1
+
+               shot_enemy = arcade.check_for_collision_with_list(self.enemy_sprite,self.bullet_list)
+               if len(shot_enemy) > 0:
+                   arcade.sound.play_sound(self.explode_sound)
+                   self.enemy_sprite.remove_from_sprite_lists()
+                   self.enemy_sprite.kill()
+                   es = Explosion(self.enemy_explosion_images,self.enemy_sprite.center_x,self.enemy_sprite.center_y)
+                   es.center_x = self.enemy_sprite.center_x
+                   es.center_y = self.enemy_sprite.center_y
+                   es.update()
+                   self.enemy_explosion_list.append(es)
+                   self.all_sprites_list.append(es)
+                   self.enemy_shot = 1
+                   self.power_sprite.top = self.enemy_sprite.top
+                   self.power_sprite.center_x = self.enemy_sprite.center_x
+                   self.power_sprite.center_y = self.enemy_sprite.center_y
+                   self.power_sprite.update_animation()
+                   self.power_sprite.update()
 
             # Did each enemy hit the bullet
-            for enemy in self.enemy_list:
-                hit_list = arcade.check_for_collision_with_list(enemy,self.bullet_list)
-                if len(hit_list) > 0:
-                    enemy.kill()
-                    arcade.sound.play_sound(self.explode_sound)
-                    [b.kill() for b in hit_list]   # Delete every bullet encountered
-                    self.score += len(hit_list)
-                    e = Explosion(self.enemy_explosion_images,enemy.center_x,enemy.center_y)
-                    e.center_x = enemy.center_x
-                    e.center_y = enemy.center_y
-                    e.update()
-                    self.enemy_explosion_list.append(e)
-                    self.all_sprites_list.append(e)
+            for enemy_bullet in [ self.enemy_list, self.red_list ]:
+                for enemy in enemy_bullet:
+                    hit_list = arcade.check_for_collision_with_list(enemy,self.bullet_list)
+                    if len(hit_list) > 0:
+                        enemy.kill()
+                        arcade.sound.play_sound(self.explode_sound)
+                        [b.kill() for b in hit_list]   # Delete every bullet encountered
+                        self.score += len(hit_list)
+                        e = Explosion(self.enemy_explosion_images,enemy.center_x,enemy.center_y)
+                        e.center_x = enemy.center_x
+                        e.center_y = enemy.center_y
+                        e.update()
+                        self.enemy_explosion_list.append(e)
+                        self.all_sprites_list.append(e)
 
-            # If we've collected all the games, then move to a "GAME_OVER"
-            # state.
+            # If we've collected all the games, then move to a "GAME_OVER" state.
             if self.player_sprite.health <= 0:
                 e = Explosion(self.enemy_explosion_images,self.player_sprite.center_x,self.player_sprite.center_y)
                 e.center_x = self.player_sprite.center_x
@@ -453,7 +565,11 @@ class MyGame(arcade.Window):
                 e.update()
                 self.enemy_explosion_list.append(e)
                 self.all_sprites_list.append(e)
+                self.power_sprite.update()
                 self.current_state = GAME_OVER
+                self.background_music.stop()
+                arcade.sound.play_sound(self.gameover_sound)
+                arcade.pause(3)
                 self.set_mouse_visible(True)
 
             if self.player_sprite.left < 0:
@@ -474,4 +590,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
