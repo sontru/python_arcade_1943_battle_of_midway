@@ -500,7 +500,6 @@ class MyGame(arcade.Window):
             if not self.enemy_shot:
                 enemy_hit = arcade.check_for_collision(self.enemy_sprite,self.player_sprite)
                 if enemy_hit:
-                    print(self.enemy_sprite.left,self.enemy_sprite.top)
                     self.enemy_shot = True
                     self.enemy_sprite.kill()
                     self.enemy_sprite.update()
