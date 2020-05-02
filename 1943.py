@@ -510,8 +510,6 @@ class MyGame(arcade.Window):
                     self.enemy_explosion_list.append(es)
                     self.all_sprites_list.append(es)
 
-            print(self.player_sprite.left,self.player_sprite.top)
-
             if self.power_sprite.top < 0:
                 self.power_sprite.kill()
                 self.powerup = 0
